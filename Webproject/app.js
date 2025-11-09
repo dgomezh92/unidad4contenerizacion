@@ -1,4 +1,4 @@
-const API_URL = "https://<tu-function-app>.azurewebsites.net/api/getTemperaturas"; // ← reemplázala
+const API_URL = "https://clima-serverless-func.azurewebsites.net/api/getTemperaturas";
 
 const searchBtn = document.getElementById('searchBtn');
 const cityInput = document.getElementById('cityInput');

@@ -113,7 +113,7 @@ resource staticWeb 'Microsoft.Web/staticSites@2023-01-01' = {
     tier: 'Free'
   }
   properties: {
-    repositoryUrl: 'https://github.com/<tu_usuario>/<tu_repo>'
+    repositoryUrl: 'https://github.com/dgomezh92/unidad4contenerizacion'
     branch: 'main'
     buildProperties: {
       appLocation: '/'
