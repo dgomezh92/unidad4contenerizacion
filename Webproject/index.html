@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Temperaturas Globales - Serverless App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>🌍 Temperaturas Globales - Serverless Dashboard</h1>
+  </header>
+
+  <section id="search">
+    <input type="text" id="cityInput" placeholder="Buscar por ciudad o país..." />
+    <button id="searchBtn">Buscar</button>
+  </section>
+
+  <section id="results">
+    <h2>Resultados</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Ciudad</th>
+          <th>País</th>
+          <th>Fecha</th>
+          <th>Temperatura Promedio (°C)</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="4">Realiza una búsqueda para ver resultados...</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <p>Desarrollado por <strong>Diego F. Gómez</strong> | Azure Serverless 🌩️</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
