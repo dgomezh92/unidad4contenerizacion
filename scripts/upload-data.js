@@ -1,79 +1,117 @@
 const { CosmosClient } = require('@azure/cosmos');
-const fs = require('fs');
-const csv = require('csv-parser');
-const path = require('path');
+const https = require('https');
 
-// Configuración de Cosmos DB
+// === Configuración de la API Open-Meteo ===
+// Lista de ciudades con latitud y longitud
+const cities = [
+  { city: 'Bogotá', country: 'Colombia', lat: 4.61, lon: -74.08 },
+  { city: 'Medellín', country: 'Colombia', lat: 6.25, lon: -75.56 },
+  { city: 'Cali', country: 'Colombia', lat: 3.45, lon: -76.53 },
+  { city: 'Barranquilla', country: 'Colombia', lat: 10.96, lon: -74.80 }
+];
+
+// Rango de fechas para obtener temperaturas promedio diarias
+const startDate = '2024-01-01';
+const endDate = '2024-12-31';
+
+// === Configuración de Cosmos DB ===
 const config = {
-    endpoint: process.env.COSMOS_ENDPOINT || "https://clima-serverless-db.documents.azure.com:443/",
-    key: process.env.COSMOS_KEY,
-    databaseId: "clima_serverless_db",
-    containerId: "registros_temperatura"
+  endpoint: process.env.COSMOS_ENDPOINT,
+  key: process.env.COSMOS_KEY,
+  databaseId: process.env.COSMOS_DB_NAME || 'clima_serverless_db',
+  containerId: process.env.COSMOS_CONTAINER || 'registros_temperatura'
 };
 
-async function uploadData() {
-    try {
-        // Crear cliente de Cosmos DB
-        const client = new CosmosClient({
-            endpoint: config.endpoint,
-            key: config.key
-        });
+// === Función para obtener datos de Open-Meteo ===
+async function fetchCityData(cityInfo) {
+  const { lat, lon, city, country } = cityInfo;
 
-        console.log('Conectando a Cosmos DB...');
-        
-        const database = client.database(config.databaseId);
-        const container = database.container(config.containerId);
+  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${startDate}&end_date=${endDate}&daily=temperature_2m_mean&timezone=auto`;
 
-        // Leer el archivo CSV
-        const results = [];
-        const csvPath = path.join(__dirname, '..', 'upload', 'GlobalTemperatures.csv');
+  console.log(`Solicitando datos de ${city}...`);
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      let data = '';
 
-        await new Promise((resolve, reject) => {
-            fs.createReadStream(csvPath)
-                .pipe(csv())
-                .on('data', (data) => {
-                    // Transformar los datos
-                    const item = {
-                        id: `${data.City}_${data.Country}_${data.dt}`.replace(/\s+/g, '_'),
-                        city: data.City,
-                        country: data.Country,
-                        date: data.dt,
-                        average_temperature: parseFloat(data.AverageTemperature) || null,
-                        average_temperature_uncertainty: parseFloat(data.AverageTemperatureUncertainty) || null,
-                        latitude: data.Latitude,
-                        longitude: data.Longitude
-                    };
-                    results.push(item);
-                })
-                .on('end', () => {
-                    resolve(results);
-                })
-                .on('error', (error) => {
-                    reject(error);
-                });
-        });
+      if (res.statusCode !== 200) {
+        return reject(new Error(`Error HTTP ${res.statusCode} para ${city}`));
+      }
 
-        console.log(`Se encontraron ${results.length} registros para procesar`);
+      res.on('data', (chunk) => (data += chunk));
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (!parsed.daily || !parsed.daily.time) {
+            return reject(new Error(`Datos incompletos para ${city}`));
+          }
 
-        // Subir los datos en lotes
-        const batchSize = 100;
-        for (let i = 0; i < results.length; i += batchSize) {
-            const batch = results.slice(i, i + batchSize);
-            await Promise.all(
-                batch.map(item => 
-                    container.items.upsert(item)
-                        .catch(err => console.error(`Error al subir item ${item.id}:`, err))
-                )
-            );
-            console.log(`Procesados ${Math.min(i + batchSize, results.length)} de ${results.length} registros`);
+          const records = parsed.daily.time.map((date, i) => ({
+            id: `${city}_${country}_${date}`.replace(/\s+/g, '_'),
+            city,
+            country,
+            date,
+            average_temperature: parsed.daily.temperature_2m_mean[i],
+            latitude: lat,
+            longitude: lon
+          }));
+
+          console.log(`✔ ${records.length} registros obtenidos para ${city}`);
+          resolve(records);
+        } catch (err) {
+          reject(new Error(`Error parseando respuesta de ${city}: ${err.message}`));
         }
-
-        console.log('¡Carga de datos completada!');
-
-    } catch (err) {
-        console.error('Error durante la carga de datos:', err);
-    }
+      });
+    }).on('error', (err) => reject(err));
+  });
 }
 
-// Ejecutar el script
+// === Carga de datos a Cosmos DB ===
+async function uploadData() {
+  try {
+    if (!config.endpoint || !config.key) {
+      throw new Error('Configura las variables de entorno COSMOS_ENDPOINT y COSMOS_KEY.');
+    }
+
+    const client = new CosmosClient({ endpoint: config.endpoint, key: config.key });
+    const database = client.database(config.databaseId);
+    const container = database.container(config.containerId);
+
+    console.log('Conectando a Cosmos DB...');
+    await database.read();
+    await container.read();
+    console.log('Conexión validada ✅');
+
+    // Obtener datos de todas las ciudades
+    let allData = [];
+    for (const c of cities) {
+      const cityData = await fetchCityData(c);
+      allData = allData.concat(cityData);
+    }
+
+    console.log(`Total de registros a cargar: ${allData.length}`);
+
+    // Subir datos en lotes
+    const batchSize = 100;
+    for (let i = 0; i < allData.length; i += batchSize) {
+      const batch = allData.slice(i, i + batchSize);
+      await Promise.all(
+        batch.map(async (item) => {
+          try {
+            await container.items.upsert(item);
+          } catch (err) {
+            console.error(`Error al insertar ${item.id}:`, err.message);
+          }
+        })
+      );
+      console.log(`Procesados ${Math.min(i + batchSize, allData.length)} / ${allData.length}`);
+    }
+
+    console.log('✅ Carga de datos completada con éxito');
+
+  } catch (err) {
+    console.error('❌ Error general:', err.message || err);
+  }
+}
+
+// Ejecutar
 uploadData();
