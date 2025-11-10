@@ -11,6 +11,20 @@ module.exports = async function (context, req) {
         headers: req.headers
     });
 
+    // Handle OPTIONS request for CORS
+    if (req.method === 'OPTIONS') {
+        context.res = {
+            status: 204,
+            headers: {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                'Access-Control-Max-Age': '86400'
+            }
+        };
+        return;
+    }
+
     // Log environment variables
     context.log('Environment variables:', {
         COSMOS_URL: process.env.COSMOS_URL,
