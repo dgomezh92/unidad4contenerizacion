@@ -4,11 +4,6 @@ param projectName string = 'clima-serverless'
 @description('Ubicación de los recursos')
 param location string = 'eastus2'
 
-
-
-@description('Activar modo gratuito en Cosmos DB')
-param enableFreeTier bool = true
-
 // Cosmos DB account
 resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2023-04-15' = {
   name: '${projectName}-db'
@@ -16,12 +11,15 @@ resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2023-04-15' = {
   kind: 'GlobalDocumentDB'
   properties: {
     databaseAccountOfferType: 'Standard'
-    enableFreeTier: enableFreeTier
+    enableFreeTier: true
     capabilities: [
       {
         name: 'EnableServerless'
       }
     ]
+    consistencyPolicy: {
+      defaultConsistencyLevel: 'Session'
+    }
     locations: [
       {
         locationName: location
@@ -61,52 +59,9 @@ resource cosmosContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/con
   }
 }
 
-// Storage Account (para Function y frontend)
-resource storage 'Microsoft.Storage/storageAccounts@2023-01-01' = {
-  name: '${projectName}st${uniqueString(resourceGroup().id)}'
-  location: location
-  sku: {
-    name: 'Standard_LRS'
-  }
-  kind: 'StorageV2'
-  properties: {
-    accessTier: 'Hot'
-  }
-}
-
-// Azure Function App
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
-  name: '${projectName}-plan'
-  location: location
-  sku: {
-    name: 'Y1' // Consumption (serverless)
-    tier: 'Dynamic'
-  }
-}
-
-resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
-  name: '${projectName}-func'
-  location: location
-  kind: 'functionapp'
-  properties: {
-    serverFarmId: appServicePlan.id
-    siteConfig: {
-      appSettings: [
-  { name: 'FUNCTIONS_EXTENSION_VERSION', value: '~4' }
-  { name: 'FUNCTIONS_WORKER_RUNTIME', value: 'node' }
-  { name: 'AzureWebJobsStorage', value: storage.properties.primaryEndpoints.blob }
-  { name: 'COSMOS_URL', value: cosmosAccount.properties.documentEndpoint }
-  { name: 'COSMOS_KEY', value: cosmosAccount.listKeys().primaryMasterKey }
-  { name: 'COSMOS_DB_NAME', value: 'clima_serverless_db' }
-  { name: 'COSMOS_CONTAINER', value: 'registros_temperatura' }
-      ]
-    }
-  }
-}
-
-// Static Web App (frontend)
+// Static Web App with API (frontend + backend)
 resource staticWeb 'Microsoft.Web/staticSites@2023-01-01' = {
-  name: '${projectName}-frontend'
+  name: '${projectName}-app'
   location: location
   sku: {
     name: 'Free'
@@ -116,8 +71,22 @@ resource staticWeb 'Microsoft.Web/staticSites@2023-01-01' = {
     repositoryUrl: 'https://github.com/dgomezh92/unidad4contenerizacion'
     branch: 'main'
     buildProperties: {
-      appLocation: '/'
-      outputLocation: '/'
+      appLocation: '/Webproject'
+      apiLocation: '/api'
+      outputLocation: 'build'
     }
+    allowConfigFileUpdates: true
+  }
+}
+
+// Static Web App Config Settings
+resource staticWebConfig 'Microsoft.Web/staticSites/config@2023-01-01' = {
+  parent: staticWeb
+  name: 'appsettings'
+  properties: {
+    COSMOS_URL: cosmosAccount.properties.documentEndpoint
+    COSMOS_KEY: cosmosAccount.listKeys().primaryMasterKey
+    COSMOS_DB_NAME: 'clima_serverless_db'
+    COSMOS_CONTAINER: 'registros_temperatura'
   }
 }
