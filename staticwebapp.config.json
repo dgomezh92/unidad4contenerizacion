@@ -1,0 +1,41 @@
+{
+  "routes": [
+    {
+      "route": "/api/*",
+      "methods": ["GET"],
+      "allowedRoles": ["anonymous"]
+    }
+  ],
+  "navigationFallback": {
+    "rewrite": "/index.html"
+  },
+  "cors": {
+    "allowedOrigins": ["*"]
+  },
+  "responseOverrides": {
+    "400": {
+      "statusCode": 200,
+      "body": {
+        "error": "Bad Request"
+      }
+    },
+    "401": {
+      "statusCode": 200,
+      "body": {
+        "error": "Unauthorized"
+      }
+    },
+    "403": {
+      "statusCode": 200,
+      "body": {
+        "error": "Forbidden"
+      }
+    },
+    "404": {
+      "statusCode": 200,
+      "body": {
+        "error": "Not Found"
+      }
+    }
+  }
+}

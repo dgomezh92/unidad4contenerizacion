@@ -2,6 +2,22 @@ const { CosmosClient } = require("@azure/cosmos");
 
 module.exports = async function (context, req) {
     context.log('Getting temperatures data');
+    
+    // Log complete request details
+    context.log('Request details:', {
+        method: req.method,
+        url: req.url,
+        query: req.query,
+        headers: req.headers
+    });
+
+    // Log environment variables
+    context.log('Environment variables:', {
+        COSMOS_URL: process.env.COSMOS_URL,
+        COSMOS_DB_NAME: process.env.COSMOS_DB_NAME,
+        COSMOS_CONTAINER: process.env.COSMOS_CONTAINER,
+        hasKey: !!process.env.COSMOS_KEY
+    });
 
     const city = req.query.city || '';
     
@@ -33,10 +49,18 @@ module.exports = async function (context, req) {
         };
 
         const { resources: items } = await container.items.query(querySpec).fetchAll();
+        
+        context.log(`Found ${items.length} items for city: ${city}`);
 
         context.res = {
             status: 200,
-            body: items
+            body: items,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+            }
         };
     } catch (error) {
         context.log.error('Error:', error);
