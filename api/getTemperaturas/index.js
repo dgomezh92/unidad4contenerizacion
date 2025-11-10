@@ -63,10 +63,20 @@ module.exports = async function (context, req) {
             }
         };
     } catch (error) {
-        context.log.error('Error:', error);
+        context.log.error('Error in function:', error);
         context.res = {
             status: 500,
-            body: "Error retrieving data from the database"
+            body: {
+                error: error.message,
+                code: error.code || 'UNKNOWN_ERROR',
+                details: error.toString()
+            },
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+            }
         };
     }
 }
