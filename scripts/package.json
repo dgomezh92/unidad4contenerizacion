@@ -1,0 +1,10 @@
+{
+  "name": "data-upload",
+  "version": "1.0.0",
+  "description": "Script para cargar datos a Cosmos DB",
+  "main": "upload-data.js",
+  "dependencies": {
+    "@azure/cosmos": "^3.17.3",
+    "csv-parser": "^3.0.0"
+  }
+}
