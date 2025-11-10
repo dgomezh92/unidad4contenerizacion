@@ -73,7 +73,7 @@ resource staticWeb 'Microsoft.Web/staticSites@2023-01-01' = {
     buildProperties: {
       appLocation: '/Webproject'
       apiLocation: '/api'
-      outputLocation: 'build'
+      outputLocation: '/'
     }
     allowConfigFileUpdates: true
   }
